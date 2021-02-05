@@ -2,7 +2,6 @@ package com.newbiest.mms.model;
 
 import javax.persistence.DiscriminatorValue;
 import javax.persistence.Entity;
-import javax.persistence.Table;
 
 /**
  * 发货单
@@ -11,6 +10,11 @@ import javax.persistence.Table;
 @Entity
 @DiscriminatorValue(Document.CATEGORY_DELIVERY)
 public class DeliveryOrder extends Document {
+    public static  final String GENERATOR_DELIVERY_ORDER_ID_RULE = "createDeliveryOrderId" ;
+    public static  final String GENERATOR_DELIVERY_ORDER_LINE_ID_RULE = "createDeliveryOrderLineId" ;
 
-
+    @Override
+    public String getCategory(){
+        return Document.CATEGORY_DELIVERY;
+    }
 }

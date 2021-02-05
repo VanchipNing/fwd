@@ -152,3 +152,22 @@ databaseChangeLog:
   - include:
       file: db.changelog-0.0.3.material_his.yaml
       relativeToChangelogFile: true
+  - include:
+      file: db.changelog-0.0.2.mlot_check_sheet.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: db.changelog-0.0.8.material_lot.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: db.changelog-0.0.8.material_lot_his.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: 1.0.5/db.changelog-mms.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: db.changelog-0.0.9.material_lot.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: db.changelog-0.0.9.material_lot_his.yaml
+      relativeToChangelogFile: true
+

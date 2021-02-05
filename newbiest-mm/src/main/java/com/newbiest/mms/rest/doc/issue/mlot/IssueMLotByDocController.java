@@ -29,7 +29,7 @@ public class IssueMLotByDocController extends AbstractRestController {
 
     @Autowired
     DocumentService documentService;
-
+    
     @ApiOperation(value = "发料")
     @ApiImplicitParam(name="request", value="request", required = true, dataType = "IssueMLotByDocRequest")
     @RequestMapping(value = "/issueMLotByDoc", method = RequestMethod.POST, produces = "application/json; charset=utf-8")

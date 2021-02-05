@@ -1,5 +1,6 @@
 package com.newbiest.mms.model;
 
+import com.newbiest.base.dto.Action;
 import com.newbiest.base.model.NBHis;
 import com.newbiest.base.utils.StringUtils;
 import com.newbiest.mms.dto.MaterialLotAction;
@@ -22,6 +23,8 @@ public class MaterialLotHistory extends NBHis {
     public static final String TRANS_TYPE_STOCK_OUT = "StockOut";
     public static final String TRANS_TYPE_SHIP = "Ship";
     public static final String TRANS_TYPE_ISSUE = "Issue";
+    public static final String TRANS_TYPE_RETURN = "Return";
+    public static final String TRANS_TYPE_CREATE_RETURN_ORDER = "CreateReturnOrder";
 
     public static final String TRANS_TYPE_PICK = "Pick";
     public static final String TRANS_TYPE_TRANSFER = "Transfer";
@@ -30,6 +33,9 @@ public class MaterialLotHistory extends NBHis {
 
     public static final String TRANS_TYPE_PACKAGE = "Package";
     public static final String TRANS_TYPE_UN_PACKAGE = "UnPackage";
+
+    public static final String TRANS_TYPE_SPLIT = "Split";
+    public static final String TRANS_TYPE_SPLIT_CREATE = "SplitCreate";
 
     /**
      * 因为包装产生的批次
@@ -308,7 +314,7 @@ public class MaterialLotHistory extends NBHis {
     private String shipComment;
 
     /**
-     * 来料物料信息
+     * 出货物流信息
      */
     @Column(name="SHIP_LOG_INFO")
     private String shipLogInfo;
@@ -320,10 +326,22 @@ public class MaterialLotHistory extends NBHis {
     private String letteringInfo;
 
     /**
-     * 是否创建批次号
+     * 生产日期
      */
-    @Column(name="LOT_NO_FLAG")
-    private String lotNoFlag;
+    @Column(name="PRODUCTION_DATE")
+    private Date productionDate;
+
+    /**
+     * 对应的母箱的批号
+     */
+    @Column(name="BOX_MATERIAL_LOT_ID")
+    private String boxMaterialLotId;
+
+    /**
+     *  对应的母箱的主键
+     */
+    @Column(name="BOX_MATERIAL_LOT_RRN")
+    private String boxMaterialLotIdRrn;
 
     /**
      * PackageSize
@@ -579,6 +597,23 @@ public class MaterialLotHistory extends NBHis {
     @Column(name="RESERVED42")
     private String reserved42;
 
+    /**
+     * 描述\型号
+     */
+    @Column(name="RESERVED43")
+    private String reserved43;
+
+    /**
+     * 记录备货的出货单LineRrn
+     */
+    @Column(name="RESERVED44")
+    private String reserved44;
+
+    /**
+     * 记录备货的出货单Line_id 子单号
+     */
+    @Column(name="RESERVED45")
+    private String reserved45;
 
     public void setSubMaterialLotFlag(Boolean subMaterialLotFlag) {
         this.subMaterialLotFlag = subMaterialLotFlag ? StringUtils.YES : StringUtils.NO;
@@ -588,10 +623,18 @@ public class MaterialLotHistory extends NBHis {
         return StringUtils.YES.equalsIgnoreCase(this.subMaterialLotFlag);
     }
 
-    public void buildByMaterialLotAction(MaterialLotAction materialLotAction) {
+    @Override
+    public void setAction(Action action) {
+        MaterialLotAction materialLotAction = (MaterialLotAction) action;
+        super.setAction(materialLotAction);
         this.setTransQty(materialLotAction.getTransQty());
-        this.setActionCode(materialLotAction.getActionCode());
-        this.setActionReason(materialLotAction.getActionReason());
-        this.setActionComment(materialLotAction.getActionComment());
+
+        this.setTransWarehouseId(materialLotAction.getFromWarehouseId());
+        this.setTransStorageId(materialLotAction.getFromStorageId());
+        this.setTargetWarehouseId(materialLotAction.getTargetWarehouseId());
+        this.setTargetStorageId(materialLotAction.getTargetStorageId());
+
     }
+
+
 }

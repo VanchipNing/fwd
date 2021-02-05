@@ -263,7 +263,7 @@ public class MaterialLot extends NBUpdatable implements StatusLifeCycle{
     private String incomingComment;
 
     /**
-     * 来料物料信息
+     * 来料物流信息
      */
     @Column(name="INCOMING_LOG_INFO")
     private String incomingLogInfo;
@@ -287,7 +287,7 @@ public class MaterialLot extends NBUpdatable implements StatusLifeCycle{
     private String shipComment;
 
     /**
-     * 来料物料信息
+     * 出货物流信息
      */
     @Column(name="SHIP_LOG_INFO")
     private String shipLogInfo;
@@ -299,10 +299,28 @@ public class MaterialLot extends NBUpdatable implements StatusLifeCycle{
     private String letteringInfo;
 
     /**
-     * 是否创建批次号
+     * 退回原因
      */
-    @Column(name="LOT_NO_FLAG")
-    private String lotNoFlag;
+    @Column(name="RETURN_REASON")
+    private String returnReason;
+
+    /**
+     * 生产日期
+     */
+    @Column(name="PRODUCTION_DATE")
+    private Date productionDate;
+
+    /**
+     * 对应的母箱的批号
+     */
+    @Column(name="BOX_MATERIAL_LOT_ID")
+    private String boxMaterialLotId;
+
+    /**
+     *  对应的母箱的主键
+     */
+    @Column(name="BOX_MATERIAL_LOT_RRN")
+    private String boxMaterialLotRrn;
 
     /**
      * PackageSize
@@ -558,7 +576,23 @@ public class MaterialLot extends NBUpdatable implements StatusLifeCycle{
     @Column(name="RESERVED42")
     private String reserved42;
 
+    /**
+     * 描述\型号
+     */
+    @Column(name="RESERVED43")
+    private String reserved43;
 
+    /**
+     * 记录备货的出货单LineRrn
+     */
+    @Column(name="RESERVED44")
+    private String reserved44;
+
+    /**
+     * 记录备货的出货单Line_id 子单号
+     */
+    @Column(name="RESERVED45")
+    private String reserved45;
 
     public void setSubMaterialLotFlag(Boolean subMaterialLotFlag) {
         this.subMaterialLotFlag = subMaterialLotFlag ? StringUtils.YES : StringUtils.NO;
@@ -625,6 +659,11 @@ public class MaterialLot extends NBUpdatable implements StatusLifeCycle{
         setPreSubStatus(StringUtils.EMPTY);
         setReceiveQty(this.getCurrentQty());
         setReservedQty(BigDecimal.ZERO);
+    }
+
+    public void setParentMaterialLot(MaterialLot parentMaterialLot) {
+        this.parentMaterialLotId = parentMaterialLot.getMaterialLotId();
+        this.parentMaterialLotRrn = parentMaterialLot.getObjectRrn();
     }
 
     public void setMaterial(Material material) {

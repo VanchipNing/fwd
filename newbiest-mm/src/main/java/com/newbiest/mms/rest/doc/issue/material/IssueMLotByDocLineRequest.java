@@ -14,6 +14,7 @@ public class IssueMLotByDocLineRequest extends Request {
 
 	public static final String ACTION_TYPE_ISSUE = "Issue";
 	public static final String ACTION_TYPE_VALIDATION = "Validation";
+	public static final String ACTION_TYPE_GET_MATERIAL_LOT = "GetMaterialLot";
 
 	private IssueMLotByDocLineRequestBody body;
 

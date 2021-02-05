@@ -3,7 +3,6 @@ package com.newbiest.mms.service;
 import com.newbiest.base.exception.ClientException;
 import com.newbiest.commom.sm.model.StatusModel;
 import com.newbiest.mms.dto.MaterialLotAction;
-import com.newbiest.mms.dto.MaterialLotJudgeAction;
 import com.newbiest.mms.model.*;
 import com.newbiest.mms.state.model.MaterialStatusModel;
 
@@ -18,10 +17,20 @@ public interface MmsService {
 
 
     MaterialStatusModel getStatusModelByRrn(String statusModelRrn) throws ClientException;
+
     MaterialLot createMLot(Material material, StatusModel statusModel, String mLotId, BigDecimal transQty, BigDecimal transSubQty, Map<String, Object> propsMap) throws ClientException;
     List<MaterialLot> receiveMLot(Material material, List<MaterialLot> materialLotList) throws ClientException;
-    void iqc(MaterialLotJudgeAction materialLotJudgeAction) throws ClientException;
+    MLotCheckSheet iqc(MaterialLotAction materialLotJudgeAction) throws ClientException;
     MaterialLot issue(MaterialLot materialLot) throws ClientException;
+    MaterialLot returnMLot(MaterialLot materialLot) throws ClientException;
+
+    void holdMaterialLot(List<MaterialLotAction> materialLotActions) throws ClientException;
+    MaterialLot holdMaterialLot(String materialLotId, List<MaterialLotAction> materialLotActions) throws ClientException;
+
+    void releaseMaterialLot(List<MaterialLotHold>  materialLotHolds, MaterialLotAction releaseLotAction) throws ClientException;
+    void releaseMaterialLot(String materialLotId, List<MaterialLotHold>  materialLotHolds, MaterialLotAction releaseLotAction) throws ClientException;
+
+    MaterialLot splitMLot(String parentMaterialLotId, MaterialLotAction materialLotAction) throws ClientException;
 
     // rawMaterial
     RawMaterial saveRawMaterial(RawMaterial rawMaterial) throws ClientException;
@@ -43,9 +52,6 @@ public interface MmsService {
     MaterialLot changeMaterialLotState(MaterialLot mLot, String eventId, String targetStatus) throws ClientException;
     void validationMergeRule(String ruleName, List<MaterialLot> materialLots) throws ClientException;
     void saveMaterialLotInventory(MaterialLotInventory materialLotInventory, BigDecimal transQty) throws ClientException;
-
-    MaterialLot holdMaterialLot(MaterialLot materialLot, MaterialLotAction materialLotAction) throws ClientException;
-    MaterialLot releaseMaterialLot(MaterialLot materialLot, MaterialLotAction materialLotAction) throws ClientException;
 
     MaterialLot consumeMLot(MaterialLot materialLot, MaterialLotAction materialLotAction) throws ClientException;
 

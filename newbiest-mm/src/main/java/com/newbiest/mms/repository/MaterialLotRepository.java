@@ -23,4 +23,9 @@ public interface MaterialLotRepository extends IRepository<MaterialLot, String> 
 
     @Query("SELECT m FROM MaterialLot m, DocumentMLot d where d.materialLotId = m.materialLotId and d.documentId = :documentId")
     List<MaterialLot> findReservedLotsByDocId(String documentId) throws ClientException;
+
+    List<MaterialLot> findByReserved44(String docLineObjectRrn);
+
+    List<MaterialLot> findByMaterialNameAndGradeAndReserved44IsNullAndBoxMaterialLotIdIsNull(String materialName, String grade);
+
 }

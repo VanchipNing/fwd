@@ -1,8 +1,11 @@
 package com.newbiest.vanchip.service;
 
 import com.newbiest.base.exception.ClientException;
+import com.newbiest.mms.dto.MaterialLotAction;
+import com.newbiest.mms.model.DocumentLine;
 import com.newbiest.mms.model.MaterialLot;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -16,5 +19,21 @@ public interface VanChipService {
     void unbindMesOrder(List<String> materialLotIdList) throws ClientException;
     void bindMesOrder(List<String> materialLotIdList, String workOrderId) throws ClientException;
 
-    void deleteIncomingMaterialLot(List<MaterialLot> materialLotList, String deleteNote);
+    void deleteIncomingMaterialLot(List<MaterialLot> materialLotList, String deleteNote) throws ClientException;
+
+    void issueMLotByDoc(String documentId, List<String> materialLotIdList) throws ClientException;
+    void issueMLotByDocLine(DocumentLine documentLine, List<String> materialLotIdList) throws ClientException;
+
+    void returnMLotByDoc(String documentId, List<String> materialLotIdList) throws ClientException;
+
+    MaterialLot validationDocLineAndMaterialLot(DocumentLine documentLine, List<String> materialLotIdList) throws ClientException;
+
+    List<MaterialLot> getReservedMaterialLot(DocumentLine documentLine);
+
+    void reservedMaterialLot(DocumentLine documentLine, List<MaterialLotAction> materialLotActionList) throws ClientException;
+
+    void unReservedMaterialLot(List<MaterialLotAction> materialLotActionList) throws ClientException;
+
+    List<MaterialLot> printReservedOrder(DocumentLine documentLine) throws ClientException;
+
 }
