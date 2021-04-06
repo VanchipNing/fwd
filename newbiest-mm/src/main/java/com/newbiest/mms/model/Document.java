@@ -21,11 +21,14 @@ import java.util.List;
 @DiscriminatorColumn(name="CATEGORY", discriminatorType = DiscriminatorType.STRING, length = 32)
 public class Document extends NBUpdatable {
 
+    public static final String CATEGORY_ISSUE_FINISH_GOOD= "IssueFinishGood";
     public static final String CATEGORY_DELIVERY = "Delivery";
     public static final String CATEGORY_INCOMING = "Incoming";
     public static final String CATEGORY_ISSUE_LOT = "IssueLot";
+    public static final String CATEGORY_ISSUE_MLOT = "IssueMLot";
     public static final String CATEGORY_ISSUE_MATERIAL = "IssueMaterial";
     public static final String CATEGORY_RETURN = "Return";
+    public static final String CATEGORY_FINISH_GOOD = "FinishGood";
 
     public static final String STATUS_CREATE = "Create";
     public static final String STATUS_APPROVE = "Approve";

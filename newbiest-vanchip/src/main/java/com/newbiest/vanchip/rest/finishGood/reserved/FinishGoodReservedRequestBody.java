@@ -21,5 +21,4 @@ public class FinishGoodReservedRequestBody extends RequestBody {
 
     @ApiModelProperty(value = "完成品信息")
     private List<MaterialLotAction> materialLotActionList;
-
 }

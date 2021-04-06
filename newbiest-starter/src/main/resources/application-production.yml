@@ -1,9 +1,9 @@
+vc:
+  mesUrl: http://10.39.0.50/mycim2
 license:
   subject: newbiest_product_license
   publicAlias: nbPublicLicense
   storePass: newbiest123
-  licensePath: D:/app_wms/license/newbiest.lic
-  publicKeysStorePath: D:/app_wms/license/nb_public.keystore
 publickey: MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAJSZc2o/TmlSCcIIwEBeG1gYLgQsKEKG83zwnzGg/Vk+pY8xKFuCfdWI8p2V0ly06I7+URG+MfUukX2+Y8rda4MCAwEAAQ==
 spring:
   application:
@@ -17,14 +17,14 @@ spring:
           auto: none
   datasource:
     druid:
-      url: jdbc:oracle:thin:@192.168.2.164:1521:GCIPPTD
-      username: newbiest
-      password: newbiest
+      url: jdbc:oracle:thin:@(DESCRIPTION =(ADDRESS = (PROTOCOL = TCP)(HOST = 10.39.0.61)(PORT = 1521))(ADDRESS = (PROTOCOL = TCP)(HOST = 10.39.0.63)(PORT = 1521))(LOAD_BALANCE = yes)(FAILOVER = yes)(CONNECT_DATA =(SERVER = DEDICATED)(SERVICE_NAME = vcdb)(FAILOVER_MODE=(TYPE = SELECT)(METHOD = BASIC)(RETIRES = 180)(DELAY = 15))))
+      username: wmsprod
+      password: wmsprod
       driver-class-name: oracle.jdbc.OracleDriver
       # 初始化连接池 最小 最大数量
-      initial-size: 1
-      min-idle: 20
-      max-active: 50
+      initial-size: 30
+      min-idle: 30
+      max-active: 150
       # 获取连接最大等待时间
       max-wait: 60000
       # 间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒
@@ -35,7 +35,7 @@ spring:
       validation-query: select 'x' from dual
       # 检查连接的场景
       test-on-return: false
-      test-on-borrow: false
+      test-on-borrow: true
       test-while-idle: true
       # 打开PSCache，并且指定每个连接上PSCache的大小 Oracle建议打开。Mysql建议关闭
       pool-prepared-statements: false
@@ -82,9 +82,7 @@ server:
         http-only: true
 # actuator配置
 show:
-  swagger: true
-logging:
-  path: D:/app_butterfly/log
+  swagger: false
 management:
   endpoints:
     web:

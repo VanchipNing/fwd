@@ -8,5 +8,4 @@ import javax.persistence.Entity;
 @DiscriminatorValue(Material.CLASS_PRODUCT)
 public class Product extends Material {
 
-
 }

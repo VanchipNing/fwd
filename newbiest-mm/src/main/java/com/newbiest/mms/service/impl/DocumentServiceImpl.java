@@ -5,6 +5,7 @@ import com.newbiest.base.exception.ClientException;
 import com.newbiest.base.exception.ClientParameterException;
 import com.newbiest.base.exception.ExceptionManager;
 import com.newbiest.base.service.BaseService;
+import com.newbiest.base.utils.CollectionUtils;
 import com.newbiest.base.utils.CollectorsUtils;
 import com.newbiest.base.utils.StringUtils;
 import com.newbiest.common.idgenerator.service.GeneratorService;
@@ -23,9 +24,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -76,14 +76,33 @@ public class DocumentServiceImpl implements DocumentService {
     @Autowired
     DeliveryOrderRepository deliveryOrderRepository;
 
+    @Autowired
+    IssueFinishGoodOrderRepository issueFinishGoodOrderRepository;
+
+    @Autowired
+    IssueMLotOrderRepository issueMLotOrderRepository;
+
+    //by客户版本备货的规则
+    public static final String RESERVED_RULE_BY_CUSTOMER_VERSION = "ReservedRuleByCustomerVersion";
+    //by客户版本和MRB备货的规则
+    public static final String RESERVED_RULE_BY_CUSTOMER_VERSION_AND_MRB = "ReservedRuleByCustomerVersionAndMrb";
+    //by客户产品备货的规则
+    public static final String RESERVED_RULE_BY_CUSTOMER_PRODUCT = "ReservedRuleByCustomerProduct";
+    //by客户产品和MRB备货的规则
+    public static final String RESERVED_RULE_BY_CUSTOMER_PRODUCT_AND_MRB = "ReservedRuleByCustomerProductAndMrb";
+
     /**
      * 创建发货单
      * @param documentId         单据号 不传，系统会自己生成一个
-     * @param approveFlag        是否创建即approve
+     * @param approveFlag        是否创建即审核
+     * @param documentLineList   需子单号
      * @throws ClientException
      */
-    public void createDeliveryOrder(String documentId, boolean approveFlag, List<DocumentLine> documentLineList) throws ClientException {
+    public String createDeliveryOrder(String documentId, boolean approveFlag, List<DocumentLine> documentLineList) throws ClientException {
         try {
+            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy/MM/dd");
+            SimpleDateFormat formats = new SimpleDateFormat("yyyy-MM-dd");
+
             if (StringUtils.isNullOrEmpty(documentId)) {
                 documentId = generatorDocId(DeliveryOrder.GENERATOR_DELIVERY_ORDER_ID_RULE);
             }
@@ -91,24 +110,78 @@ public class DocumentServiceImpl implements DocumentService {
             if (deliveryOrder != null) {
                 throw new ClientParameterException(DocumentException.DOCUMENT_IS_EXIST, documentId);
             }
-            BigDecimal totalQty  = documentLineList.stream().collect(CollectorsUtils.summingBigDecimal(DocumentLine::getQty));
+
+            List<DocumentLine> docLineList = documentLineList.stream().collect(Collectors.collectingAndThen(
+                    Collectors.toCollection(() -> new TreeSet<>(
+                            Comparator.comparing(DocumentLine::getLineId))), ArrayList::new));
+            BigDecimal totalQty = docLineList.stream().collect(CollectorsUtils.summingBigDecimal(DocumentLine::getQty));
 
             deliveryOrder = new DeliveryOrder();
             deliveryOrder.setName(documentId);
             deliveryOrder.setQty(totalQty);
             deliveryOrder.setUnHandledQty(totalQty);
+            deliveryOrder.setStatus(Document.STATUS_CREATE);
             if (approveFlag) {
                 deliveryOrder.setStatus(Document.STATUS_APPROVE);
             }
             deliveryOrder = (DeliveryOrder) baseService.saveEntity(deliveryOrder);
 
-            for (DocumentLine documentLine : documentLineList) {
-                String subLineId = generatorDocId(DeliveryOrder.GENERATOR_DELIVERY_ORDER_LINE_ID_RULE, deliveryOrder);
+            Map<String, List<DocumentLine>> documentLinesMap = documentLineList.stream().collect(Collectors.groupingBy(DocumentLine::getLineId));
+            List<MaterialLot> materialLots = materialLotRepository.findByMaterialCategory(Material.TYPE_PRODUCT);
+            for (String documentLineId : documentLinesMap.keySet()) {
+                //同一笔发货单
+                List<DocumentLine> documentLines = documentLinesMap.get(documentLineId);
+
+                DocumentLine documentLine = documentLineRepository.findByLineId(documentLineId);
+                if (documentLine != null){
+                    throw new ClientParameterException(DOCUMENT_IS_EXIST, documentLineId);
+                }
+                documentLine = documentLines.get(0);
                 documentLine.setDocument(deliveryOrder);
-                documentLine.setLineId(subLineId);
+                documentLine.setLineId(documentLineId);
                 documentLine.setUnHandledQty(documentLine.getQty());
+
+                if(!StringUtils.isNullOrEmpty(documentLine.getShippingDateValue())){
+                    String shippingDate = formats.format(simpleDateFormat.parse(documentLine.getShippingDateValue()));
+                    documentLine.setShippingDate(formats.parse(shippingDate));
+                }
+                documentLine.setReservedQty(BigDecimal.ZERO);
+                documentLine.setUnReservedQty(documentLine.getQty());
+
+                for (DocumentLine line : documentLines) {
+                    //判断发货单是什么规则
+                    if(!StringUtils.isNullOrEmpty(line.getCustomerProduct()) && StringUtils.isNullOrEmpty(line.getCustomerVersion()) && StringUtils.isNullOrEmpty(line.getReelCodeId())){
+                        //根据客户产品
+                        line.setReserved24(RESERVED_RULE_BY_CUSTOMER_PRODUCT);
+                        if (!StringUtils.isNullOrEmpty(line.getReserved5())){
+                            line.setReserved24(RESERVED_RULE_BY_CUSTOMER_PRODUCT_AND_MRB);
+                        }
+                    }else if (!StringUtils.isNullOrEmpty(line.getCustomerVersion()) && StringUtils.isNullOrEmpty(line.getCustomerProduct()) && StringUtils.isNullOrEmpty(line.getReelCodeId())){
+                        //根据客户版本
+                        line.setReserved24(RESERVED_RULE_BY_CUSTOMER_VERSION);
+                        if (!StringUtils.isNullOrEmpty(line.getReserved5())){
+                            line.setReserved24(RESERVED_RULE_BY_CUSTOMER_VERSION_AND_MRB);
+                        }
+                    }else if(!StringUtils.isNullOrEmpty(line.getReelCodeId()) && StringUtils.isNullOrEmpty(line.getCustomerProduct()) && StringUtils.isNullOrEmpty(line.getCustomerVersion())) {
+                        //根据ReeL NO
+                        List<MaterialLot> mlots = materialLots.stream().filter(mLot -> line.getReelCodeId().equals(mLot.getMaterialLotId())).collect(Collectors.toList());
+                        if (CollectionUtils.isEmpty(mlots)){
+                            throw new ClientParameterException(MmsException.MM_MATERIAL_LOT_IS_NOT_EXIST, line.getLineId());
+                        }
+                        MaterialLot materialLot = mlots.get(0);
+                        if(!StringUtils.isNullOrEmpty(materialLot.getReserved45())){
+                            throw new ClientParameterException(DocumentException.MATERIAL_LOT_ALREADY_RESERVED, line.getLineId());
+                        }
+                        // 进行预备货，物料绑定单据号，还是需要去做备货动作
+                        materialLot.setReserved45(documentLine.getLineId());
+                        baseService.saveEntity(materialLot, MaterialLotHistory.TRANS_TYPE_PRE_RESERVED);
+                    }else {
+                        throw new ClientParameterException(DocumentException.IMPORT_TEMPLATE_ERROR);
+                    }
+                }
                 baseService.saveEntity(documentLine);
             }
+            return documentId;
         } catch (Exception e) {
             throw ExceptionManager.handleException(e, log);
         }
@@ -146,6 +219,10 @@ public class DocumentServiceImpl implements DocumentService {
             }
             returnOrder = (ReturnOrder) baseService.saveEntity(returnOrder);
 
+            //验证物料是否被create状态的单据绑定
+            List<String> materialLotIds = materialLotActions.stream().map(materialLotAction -> materialLotAction.getMaterialLotId()).collect(Collectors.toList());
+            validationMLotBoundOrder(materialLotIds);
+            
             for (MaterialLot materialLot : materialLots) {
                 MaterialLotAction materialLotAction = materialLotActionMap.get(materialLot.getMaterialLotId());
                 materialLot.setCurrentQty(materialLotAction.getTransQty());
@@ -156,6 +233,7 @@ public class DocumentServiceImpl implements DocumentService {
                 DocumentMLot documentMLot = new DocumentMLot();
                 documentMLot.setDocumentId(returnOrder.getName());
                 documentMLot.setMaterialLotId(materialLot.getMaterialLotId());
+                documentMLot.setStatus(DocumentMLot.STATUS_CREATE);
                 documentMLotRepository.save(documentMLot);
             }
         } catch (Exception e) {
@@ -182,12 +260,16 @@ public class DocumentServiceImpl implements DocumentService {
             returnOrder.setHandledQty(returnOrder.getHandledQty().add(handleQty));
             returnOrder.setUnHandledQty(returnOrder.getUnHandledQty().subtract(handleQty));
             baseService.saveEntity(returnOrder, DocumentHistory.TRANS_TYPE_RETURN);
+
+            //更改documentMLot状态
+            changeDocMLotStatus(documentId, materialLotIdList, DocumentMLot.STATUS_RETURN);
+
         } catch (Exception e) {
             throw ExceptionManager.handleException(e, log);
         }
     }
 
-    private List<MaterialLot> validationDocReservedMLot(String documentId, List<String> validationMLotIdList) throws ClientException {
+    public List<MaterialLot> validationDocReservedMLot(String documentId, List<String> validationMLotIdList) throws ClientException {
         try {
             List<MaterialLot> materialLots = Lists.newArrayList();
             List<MaterialLot> reservedMaterialLots = getReservedMLotByDocId(documentId);
@@ -211,9 +293,10 @@ public class DocumentServiceImpl implements DocumentService {
      * @param documentId 单据号 不传，系统会自己生成一个
      * @param approveFlag 是否创建即approve
      * @param materialLotIdList 物料批次号
+     * @return 单据号
      * @throws ClientException
      */
-    public void createIssueLotOrder(String documentId, boolean approveFlag, List<String> materialLotIdList) throws ClientException{
+    public String createIssueLotOrder(String documentId, boolean approveFlag, List<String> materialLotIdList) throws ClientException{
         try {
             if (StringUtils.isNullOrEmpty(documentId)) {
                 documentId = generatorDocId(IssueLotOrder.GENERATOR_ISSUE_LOT_ORDER_ID_RULE);
@@ -234,12 +317,17 @@ public class DocumentServiceImpl implements DocumentService {
             }
             issueLotOrder = (IssueLotOrder) baseService.saveEntity(issueLotOrder);
 
+            //验证物料是否被create状态的单据绑定
+            validationMLotBoundOrder(materialLotIdList);
+
             for (MaterialLot materialLot : materialLots) {
                 DocumentMLot documentMLot = new DocumentMLot();
                 documentMLot.setDocumentId(issueLotOrder.getName());
                 documentMLot.setMaterialLotId(materialLot.getMaterialLotId());
+                documentMLot.setStatus(DocumentMLot.STATUS_CREATE);
                 documentMLotRepository.save(documentMLot);
             }
+            return documentId;
         } catch (Exception e) {
             throw ExceptionManager.handleException(e, log);
         }
@@ -314,7 +402,9 @@ public class DocumentServiceImpl implements DocumentService {
                 handleQty = handleQty.add(materialLot.getCurrentQty());
                 mmsService.issue(materialLot);
             }
-
+            if (documentLine.getUnHandledQty().compareTo(handleQty) < 0){
+                throw new ClientParameterException(MLOT_TOTAL_QTY_GREATER_THAN_DOCLINE_UNHANDLED_QTY);
+            }
             documentLine.setHandledQty(documentLine.getHandledQty().add(handleQty));
             documentLine.setUnHandledQty(documentLine.getUnHandledQty().subtract(handleQty));
             baseService.saveEntity(documentLine, DocumentHistory.TRANS_TYPE_ISSUE);
@@ -356,6 +446,10 @@ public class DocumentServiceImpl implements DocumentService {
             issueLotOrder.setHandledQty(issueLotOrder.getHandledQty().add(handleQty));
             issueLotOrder.setUnHandledQty(issueLotOrder.getUnHandledQty().subtract(handleQty));
             baseService.saveEntity(issueLotOrder, DocumentHistory.TRANS_TYPE_ISSUE);
+
+            //更改documentMLot状态
+            changeDocMLotStatus(issueLotOrderId, materialLotIdList, DocumentMLot.STATUS_ISSUE);
+
         } catch (Exception e) {
             throw ExceptionManager.handleException(e, log);
         }
@@ -400,6 +494,16 @@ public class DocumentServiceImpl implements DocumentService {
         }
     }
 
+    public void approveDocument(String documentId) throws ClientException {
+        try {
+            Document document = documentRepository.findOneByName(documentId);
+
+            approveDocument(document);
+        } catch (Exception e) {
+            throw ExceptionManager.handleException(e, log);
+        }
+    }
+
     /**
      * 审核单据
      * @param document
@@ -427,4 +531,203 @@ public class DocumentServiceImpl implements DocumentService {
         return generatorService.generatorId(generatorContext);
     }
 
+    /**
+     * 创建成品发料单
+     * @param documentId
+     * @param approveFlag
+     * @param materialLotIdList
+     */
+    public void createIssueFinishGoodOrder(String documentId, boolean approveFlag, List<String> materialLotIdList) throws ClientException{
+        try {
+            if (StringUtils.isNullOrEmpty(documentId)) {
+                documentId = generatorDocId(IssueFinishGoodOrder.GENERATOR_ISSUE_FINISH_GOOD_ORDER_ID_RULE);
+            }
+            IssueFinishGoodOrder issueFinishGoodLotOrder = issueFinishGoodOrderRepository.findOneByName(documentId);
+            if (issueFinishGoodLotOrder != null) {
+                throw new ClientParameterException(DocumentException.DOCUMENT_IS_EXIST, documentId);
+            }
+            List<MaterialLot> materialLots = materialLotIdList.stream().map(materialLotId -> mmsService.getMLotByMLotId(materialLotId, true)).collect(Collectors.toList());
+            BigDecimal totalQty = materialLots.stream().collect(CollectorsUtils.summingBigDecimal(MaterialLot :: getCurrentQty));
+
+            issueFinishGoodLotOrder = new IssueFinishGoodOrder();
+            issueFinishGoodLotOrder.setName(documentId);
+            issueFinishGoodLotOrder.setQty(totalQty);
+            issueFinishGoodLotOrder.setUnHandledQty(totalQty);
+            if (approveFlag) {
+                issueFinishGoodLotOrder.setStatus(Document.STATUS_APPROVE);
+            }
+            issueFinishGoodLotOrder = (IssueFinishGoodOrder) baseService.saveEntity(issueFinishGoodLotOrder);
+
+            //验证物料是否被create状态的单据绑定
+            validationMLotBoundOrder(materialLotIdList);
+
+            for (MaterialLot materialLot : materialLots) {
+                DocumentMLot documentMLot = new DocumentMLot();
+                documentMLot.setDocumentId(issueFinishGoodLotOrder.getName());
+                documentMLot.setMaterialLotId(materialLot.getMaterialLotId());
+                documentMLot.setStatus(DocumentMLot.STATUS_CREATE);
+                documentMLotRepository.save(documentMLot);
+            }
+        } catch (Exception e) {
+            throw ExceptionManager.handleException(e, log);
+        }
+    }
+
+    /**
+     * 成品发料
+     */
+    public void issueFinishGoodByDoc(String issueFinishGoodLotOrderId, List<String> materialLotIdList) throws ClientException{
+        try {
+            IssueFinishGoodOrder issueFinishGoodLotOrder = issueFinishGoodOrderRepository.findOneByName(issueFinishGoodLotOrderId);
+            if (issueFinishGoodLotOrder == null) {
+                throw new ClientParameterException(DOCUMENT_IS_NOT_EXIST, issueFinishGoodLotOrderId);
+            }
+            if (!Document.STATUS_APPROVE.equals(issueFinishGoodLotOrder.getStatus())) {
+                throw new ClientParameterException(DOCUMENT_STATUS_IS_NOT_ALLOW, issueFinishGoodLotOrder.getName());
+            }
+            List<MaterialLot> materialLots = validationDocReservedMLot(issueFinishGoodLotOrderId, materialLotIdList);
+
+            BigDecimal handleQty = materialLots.stream().collect(CollectorsUtils.summingBigDecimal(MaterialLot :: getCurrentQty));
+            for (MaterialLot materialLot : materialLots) {
+                materialLot.setCurrentQty(BigDecimal.ZERO);
+                materialLot = mmsService.changeMaterialLotState(materialLot, MaterialEvent.EVENT_ISSUE, StringUtils.EMPTY);
+                baseService.saveEntity(materialLot, MaterialLotHistory.TRANS_TYPE_ISSUE);
+            }
+            issueFinishGoodLotOrder.setHandledQty(issueFinishGoodLotOrder.getHandledQty().add(handleQty));
+            issueFinishGoodLotOrder.setUnHandledQty(issueFinishGoodLotOrder.getUnHandledQty().subtract(handleQty));
+            baseService.saveEntity(issueFinishGoodLotOrder, DocumentHistory.TRANS_TYPE_ISSUE);
+
+            //更改documentMLot状态
+            changeDocMLotStatus(issueFinishGoodLotOrderId, materialLotIdList, DocumentMLot.STATUS_ISSUE);
+
+        }catch (Exception e){
+            throw ExceptionManager.handleException(e, log);
+        }
+    }
+
+    /**
+     * 创建发料单，内部发料使用
+     * @param documentId
+     * @param approveFlag
+     * @param materialLotIds
+     * @return
+     * @throws ClientException
+     */
+    public String createIssueMLotOrder(String documentId, boolean approveFlag, List<String> materialLotIds) throws ClientException{
+        try {
+            if (StringUtils.isNullOrEmpty(documentId)) {
+                documentId = generatorDocId(IssueMLotOrder.GENERATOR_ISSUE_MLOT_ORDER_ID_RULE);
+            }
+            IssueMLotOrder issueMLotOrder = issueMLotOrderRepository.findOneByName(documentId);
+
+            if (issueMLotOrder != null) {
+                throw new ClientParameterException(DocumentException.DOCUMENT_IS_EXIST, documentId);
+            }
+            List<MaterialLot> materialLots = materialLotIds.stream().map(materialLotId -> mmsService.getMLotByMLotId(materialLotId, true)).collect(Collectors.toList());
+            BigDecimal totalQty = materialLots.stream().collect(CollectorsUtils.summingBigDecimal(MaterialLot :: getCurrentQty));
+
+            issueMLotOrder = new IssueMLotOrder();
+            issueMLotOrder.setName(documentId);
+            issueMLotOrder.setQty(totalQty);
+            issueMLotOrder.setUnHandledQty(totalQty);
+            issueMLotOrder.setStatus(Document.STATUS_CREATE);
+            if (approveFlag) {
+                issueMLotOrder.setStatus(Document.STATUS_APPROVE);
+            }
+            issueMLotOrder = (IssueMLotOrder) baseService.saveEntity(issueMLotOrder);
+
+            //验证物料是否被create状态的单据绑定
+            validationMLotBoundOrder(materialLotIds);
+
+            for (MaterialLot materialLot : materialLots) {
+                DocumentMLot documentMLot = new DocumentMLot();
+                documentMLot.setDocumentId(issueMLotOrder.getName());
+                documentMLot.setMaterialLotId(materialLot.getMaterialLotId());
+                documentMLot.setStatus(DocumentMLot.STATUS_CREATE);
+                documentMLotRepository.save(documentMLot);
+            }
+            return documentId;
+        }catch (Exception e){
+            throw ExceptionManager.handleException(e, log);
+        }
+    }
+
+    /**
+     * 内部发料
+     * @param issueMLotId
+     * @param materialLotIdList
+     * @throws ClientException
+     */
+    public void issueMaterialLotByDoc(String issueMLotId, List<String> materialLotIdList) throws ClientException {
+        try {
+            IssueMLotOrder issueMLotOrder = issueMLotOrderRepository.findOneByName(issueMLotId);
+            if (issueMLotOrder == null) {
+                throw new ClientParameterException(DOCUMENT_IS_NOT_EXIST, issueMLotOrder.getName());
+            }
+            if (!Document.STATUS_APPROVE.equals(issueMLotOrder.getStatus())) {
+                throw new ClientParameterException(DOCUMENT_STATUS_IS_NOT_ALLOW, issueMLotOrder.getName());
+            }
+            List<MaterialLot> materialLots = validationDocReservedMLot(issueMLotId, materialLotIdList);
+
+            BigDecimal handleQty = materialLots.stream().collect(CollectorsUtils.summingBigDecimal(MaterialLot :: getCurrentQty));
+            for (MaterialLot materialLot : materialLots) {
+                mmsService.issue(materialLot);
+            }
+            issueMLotOrder.setHandledQty(issueMLotOrder.getHandledQty().add(handleQty));
+            issueMLotOrder.setUnHandledQty(issueMLotOrder.getUnHandledQty().subtract(handleQty));
+            baseService.saveEntity(issueMLotOrder, DocumentHistory.TRANS_TYPE_ISSUE);
+
+            //更改documentMLot状态
+            changeDocMLotStatus(issueMLotId, materialLotIdList, DocumentMLot.STATUS_ISSUE);
+        } catch (Exception e) {
+            throw ExceptionManager.handleException(e, log);
+        }
+    }
+
+
+    /**
+     *验证物料绑定的单据在documentMlot中Status为Create
+     * @param materialLotIds
+     */
+    public void validationMLotBoundOrder(List<String> materialLotIds) throws ClientException{
+       try {
+           List<DocumentMLot> documentMLots = documentMLotRepository.findByStatus(DocumentMLot.STATUS_CREATE);
+           if (CollectionUtils.isEmpty(documentMLots)){
+               return;
+           }
+           for (String materialLotId : materialLotIds) {
+               Optional<DocumentMLot> documentMLotOptional = documentMLots.stream().filter(documentMLot -> documentMLot.getMaterialLotId().equals(materialLotId)).findFirst();
+               if (documentMLotOptional.isPresent()){
+                  throw new ClientParameterException(MATERIAL_LOT_ALREADY_BOUND_ORDER, materialLotId);
+               }
+           }
+       }catch (Exception e){
+           throw ExceptionManager.handleException(e, log);
+       }
+    }
+
+    /**
+     * 更改documentMlot状态
+     * @param documentId
+     * @param materialLotIds
+     */
+    public void changeDocMLotStatus(String documentId, List<String> materialLotIds, String status) throws ClientException{
+        try {
+            List<DocumentMLot> documentMLots = documentMLotRepository.findByDocumentId(documentId);
+            if (CollectionUtils.isEmpty(documentMLots)){
+                return;
+            }
+
+            for (String materialLotId : materialLotIds) {
+                Optional<DocumentMLot> documentMLotOptional = documentMLots.stream().filter(documentMLot -> documentMLot.getMaterialLotId().equals(materialLotId)).findFirst();
+                if (documentMLotOptional.isPresent()){
+                    DocumentMLot documentMLot = documentMLotOptional.get();
+                    documentMLot.setStatus(status);
+                    baseService.saveEntity(documentMLot);
+                }
+            }
+        } catch (Exception e) {
+            throw ExceptionManager.handleException(e, log);
+        }
+    }
 }
