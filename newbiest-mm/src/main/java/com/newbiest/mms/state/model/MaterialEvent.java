@@ -23,6 +23,11 @@ public class MaterialEvent extends Event {
     public static final String EVENT_IQC = "IQC";
 
     /**
+     * 出货质量检查
+     */
+    public static final String EVENT_OQC = "OQC";
+
+    /**
      * 拒绝
      */
     public static final String EVENT_REJECT = "Reject";
@@ -42,6 +47,9 @@ public class MaterialEvent extends Event {
      *  一般指创建了退料单进行退料的事件
      */
     public static final String EVENT_WAIT_RETURN = "WaitReturn";
+
+    public static final String EVENT_RESERVED = "Reserved";
+    public static final String EVENT_UN_RESERVED = "UnReserved";
 
     /**
      * 发料

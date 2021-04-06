@@ -1,8 +1,6 @@
 package com.newbiest.mms.model;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.newbiest.base.model.NBUpdatable;
-import com.newbiest.base.utils.DateUtils;
 import lombok.Data;
 
 import javax.persistence.*;
@@ -45,11 +43,15 @@ public class DocumentLine extends NBUpdatable {
     @Column(name="UN_HANDLE_QTY")
     private BigDecimal unHandledQty = BigDecimal.ZERO;
 
+    @Column(name="RESERVED_QTY")
+    private BigDecimal reservedQty = BigDecimal.ZERO;
+
+    @Column(name="UN_RESERVED_QTY")
+    private BigDecimal unReservedQty = BigDecimal.ZERO;
     /**
      *shipping Date
      */
     @Temporal(TemporalType.TIMESTAMP)
-    @JsonFormat(pattern = DateUtils.DEFAULT_DATE_PATTERN)
     @Column(name = "SHIPPING_DATE")
     private Date shippingDate;
 
@@ -60,7 +62,7 @@ public class DocumentLine extends NBUpdatable {
     private String reserved1;
 
     /**
-     *客户产品
+     * 客户代码
      */
     @Column(name="RESERVED2")
     private String reserved2;
@@ -179,8 +181,48 @@ public class DocumentLine extends NBUpdatable {
     @Column(name="RESERVED21")
     private String reserved21;
 
+    /**
+     * 客户产品
+     */
     @Column(name="RESERVED22")
     private String reserved22;
+
+    /**
+     * 配料单流水码
+     */
+    @Column(name="RESERVED23")
+    private String reserved23;
+
+    /**
+     * 对应备货规则
+     */
+    @Column(name="RESERVED24")
+    private String reserved24;
+
+    /**
+     * 导入时格式转换
+     */
+    @Transient
+    private String shippingDateValue;
+
+    /**
+     * 创建ByReelCode发料单时，接收ReelCode
+     * 一个Excel表示一个发货单
+     */
+    @Transient
+    private String reelCodeId;
+
+    /**
+     * 创建通过客户版本发料单时，接收客户版本
+     */
+    @Transient
+    private String customerVersion;
+
+    /**
+     * 创建通过客户产品发料单时，接收客户产品
+     */
+    @Transient
+    private String customerProduct;
 
     public void setMaterial(Material material) {
         this.materialRrn = material.getObjectRrn();
